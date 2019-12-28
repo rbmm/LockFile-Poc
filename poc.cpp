@@ -214,9 +214,9 @@ public:
 		{
 			Init(pio);
 
-			// try also with LOCKFILE_EXCLUSIVE_LOCK for compare, here no error even with UM_IRP_WRONG
+			// try also with LOCKFILE_EXCLUSIVE_LOCK only for compare, here no error even with UM_IRP_WRONG
 			lpOverlapped->CheckError(
-				LockFileEx(_hFile, LOCKFILE_EXCLUSIVE_LOCK/*|LOCKFILE_FAIL_IMMEDIATELY*/, 0, 1, 0, lpOverlapped), bSkipOnSynchronous);
+				LockFileEx(_hFile, LOCKFILE_EXCLUSIVE_LOCK|LOCKFILE_FAIL_IMMEDIATELY, 0, 1, 0, lpOverlapped), bSkipOnSynchronous);
 
 			return true;
 		}
