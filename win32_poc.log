@@ -1,0 +1,85 @@
+//////////////////////////////////////////////////////////////////////////////////////
+// with UM_IRP_OK and LOCKFILE_FAIL_IMMEDIATELY:
+
+
+708>LockTestFile::LockTestFile<000001884BCD5490>
+1ba8>UM_IRP::UM_IRP<000001884BCEB310>
+eb0>UM_IRP::UM_IRP<000001884BCEE0E0>
+12f4> !! UM_IRP::IoCompletionNT<000001884BCEE0E0>(c0000055, 0000000000000000)
+12f4>UM_IRP::IoCompletionWin32<000001884BCEE0E0>(21, 0000000000000000)
+1428> !! UM_IRP::IoCompletionNT<000001884BCEB310>(0, 0000000000000000)
+1428>UM_IRP::IoCompletionWin32<000001884BCEB310>(0, 0000000000000000)
+12f4>UM_IRP::~UM_IRP<000001884BCEE0E0>
+1428>UM_IRP::~UM_IRP<000001884BCEB310>
+eb0> The process cannot access the file because another process has locked a portion of the file.
+
+The thread 'Win64 Thread' (0xeb0) has exited with code 0 (0x0).
+
+======== unlock ======
+1ba8>LockTestFile::~LockTestFile<000001884BCD5490>
+The thread 'Win64 Thread' (0x1ba8) has exited with code 0 (0x0).
+
+
+//////////////////////////////////////////////////////////////////////////////////////
+// with UM_IRP_WRONG and LOCKFILE_FAIL_IMMEDIATELY - main POC case
+
+ac4>LockTestFile::LockTestFile<0000021706C3F4F0>
+143c>UM_IRP::UM_IRP<0000021706C7D460>
+11e4>UM_IRP::UM_IRP<0000021706C7E040>
+11e4>UM_IRP::IoCompletionWin32<0000021706C7E040>(21, 0000000000000000)
+1138> !! UM_IRP::IoCompletionNT<0000021706C7E040>(c0000055, 0000000000000000)
+1138>UM_IRP::IoCompletionWin32<0000021706C7E040>(21, 0000000000000000)
+11e4>UM_IRP::~UM_IRP<0000021706C7E040>
+2b8> !! UM_IRP::IoCompletionNT<0000021706C7D460>(0, 0000000000000000)
+2b8>UM_IRP::IoCompletionWin32<0000021706C7D460>(0, 0000000000000000)
+First-chance exception at 0x00007ff78371507d in poc.exe: 0xC0000005: Access violation reading location 0xffffffffffffffff.
+2b8>UM_IRP::~UM_IRP<0000021706C7D460>
+Unhandled exception at 0x00007ff78371507d in poc.exe: 0xC0000005: Access violation reading location 0xffffffffffffffff.
+
+crash because double-free of UM_IRP_WRONG - after got c0000055/21 i assume that will be no IOCP packet and free UM_IRP_WRONG
+but really - will be IOCP packet and callback called, where also free UM_IRP_WRONG
+
+
+------------------------- not for POC, just for demo, here no different with UM_IRP_WRONG or UM_IRP_OK, if FailImmediately = FALSE -----------------
+
+//////////////////////////////////////////////////////////////////////////////////////
+// with UM_IRP_WRONG or UM_IRP_OK and without LOCKFILE_FAIL_IMMEDIATELY, wait for lock not canceled:
+
+18cc>LockTestFile::LockTestFile<0000026FDE1DE7E0>
+e54>UM_IRP::UM_IRP<0000026FDE21D3F0>
+ad0>UM_IRP::UM_IRP<0000026FDE208210>
+5b0> !! UM_IRP::IoCompletionNT<0000026FDE21D3F0>(0, 0000000000000000)
+5b0>UM_IRP::IoCompletionWin32<0000026FDE21D3F0>(0, 0000000000000000)
+5b0>UM_IRP::~UM_IRP<0000026FDE21D3F0>
+
+======== unlock ======
+5b0> !! UM_IRP::IoCompletionNT<0000026FDE208210>(0, FFFF830992CBC450)
+5b0>UM_IRP::IoCompletionWin32<0000026FDE208210>(0, FFFF830992CBC450)
+5b0>UM_IRP::~UM_IRP<0000026FDE208210>
+The thread 'Win64 Thread' (0xe54) has exited with code 0 (0x0).
+
+======== unlock ======
+ad0>LockTestFile::~LockTestFile<0000026FDE1DE7E0>
+The thread 'Win64 Thread' (0xad0) has exited with code 0 (0x0).
+
+//////////////////////////////////////////////////////////////////////////////////////
+// with UM_IRP_WRONG or UM_IRP_OK and without LOCKFILE_FAIL_IMMEDIATELY, wait for lock canceled:
+
+1574>LockTestFile::LockTestFile<000001F511DFE790>
+1a5c>UM_IRP::UM_IRP<000001F511E3D510>
+2cc>UM_IRP::UM_IRP<000001F511E3E0F0>
+fb0> !! UM_IRP::IoCompletionNT<000001F511E3D510>(0, 0000000000000000)
+fb0>UM_IRP::IoCompletionWin32<000001F511E3D510>(0, 0000000000000000)
+fb0>UM_IRP::~UM_IRP<000001F511E3D510>
+fb0> !! UM_IRP::IoCompletionNT<000001F511E3E0F0>(c0000120, 0000000000000000)
+fb0>UM_IRP::IoCompletionWin32<000001F511E3E0F0>(3e3, 0000000000000000)
+fb0>UM_IRP::~UM_IRP<000001F511E3E0F0>
+2cc> The I/O operation has been aborted because of either a thread exit or an application request.
+
+The thread 'Win64 Thread' (0x2cc) has exited with code 0 (0x0).
+
+======== unlock ======
+1a5c>LockTestFile::~LockTestFile<000001F511DFE790>
+The thread 'Win64 Thread' (0x1a5c) has exited with code 0 (0x0).
+
+

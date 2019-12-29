@@ -1,0 +1,83 @@
+//////////////////////////////////////////////////////////////////////////////////////
+// with UM_IRP_OK and LOCKFILE_FAIL_IMMEDIATELY:
+
+
+11bc>LockTestFile::LockTestFile<000001B1B073F4F0>
+b8>UM_IRP::UM_IRP<000001B1B077D380>
+a90>UM_IRP::UM_IRP<000001B1B0734100>
+1b80> !! UM_IRP::IoCompletionCallback<000001B1B0734100>(21, 0000000000000000)
+1b80>UM_IRP::IoCompletionWin32<000001B1B0734100>(21, 0000000000000000)
+a48> !! UM_IRP::IoCompletionCallback<000001B1B077D380>(0, 0000000000000000)
+a48>UM_IRP::IoCompletionWin32<000001B1B077D380>(0, 0000000000000000)
+1b80>UM_IRP::~UM_IRP<000001B1B0734100>
+a48>UM_IRP::~UM_IRP<000001B1B077D380>
+a90> The process cannot access the file because another process has locked a portion of the file.
+
+The thread 'Win64 Thread' (0xa90) has exited with code 0 (0x0).
+
+======== unlock ======
+b8>LockTestFile::~LockTestFile<000001B1B073F4F0>
+The thread 'Win64 Thread' (0xb8) has exited with code 0 (0x0).
+
+
+//////////////////////////////////////////////////////////////////////////////////////
+// with UM_IRP_WRONG and LOCKFILE_FAIL_IMMEDIATELY - main POC case
+
+14f4>LockTestFile::LockTestFile<000002825367F4F0>
+dd0>UM_IRP::UM_IRP<00000282536BD470>
+d24>UM_IRP::UM_IRP<00000282536B41B0>
+d24>UM_IRP::IoCompletionWin32<00000282536B41B0>(21, 0000000000000000)
+1acc> !! UM_IRP::IoCompletionCallback<00000282536B41B0>(21, 0000000000000000)
+1acc>UM_IRP::IoCompletionWin32<00000282536B41B0>(21, 0000000000000000)
+d24>UM_IRP::~UM_IRP<00000282536B41B0>
+First-chance exception at 0x00007ff7774350a3 in poc.exe: 0xC0000005: Access violation reading location 0xffffffffffffffff.
+Unhandled exception at 0x00007ff7774350a3 in poc.exe: 0xC0000005: Access violation reading location 0xffffffffffffffff.
+
+crash because double-free of UM_IRP_WRONG - after got 0x21 error i assume that will be no IOCP packet and free UM_IRP_WRONG
+but really - will be IOCP packet and callback called, where also free UM_IRP_WRONG
+
+
+------------------------- not for POC, just for demo, here no different with UM_IRP_WRONG or UM_IRP_OK, if FailImmediately = FALSE -----------------
+
+//////////////////////////////////////////////////////////////////////////////////////
+// with UM_IRP_WRONG or UM_IRP_OK and without LOCKFILE_FAIL_IMMEDIATELY, wait for lock not canceled:
+
+618>LockTestFile::LockTestFile<000001FBCD231650>
+11f0>UM_IRP::UM_IRP<000001FBCD232B50>
+37c>UM_IRP::UM_IRP<000001FBCD26E0E0>
+704> !! UM_IRP::IoCompletionCallback<000001FBCD232B50>(0, 0000000000000000)
+704>UM_IRP::IoCompletionWin32<000001FBCD232B50>(0, 0000000000000000)
+704>UM_IRP::~UM_IRP<000001FBCD232B50>
+
+======== unlock ======
+704> !! UM_IRP::IoCompletionCallback<000001FBCD26E0E0>(0, FFFF830992CBC450)
+704>UM_IRP::IoCompletionWin32<000001FBCD26E0E0>(0, FFFF830992CBC450)
+704>UM_IRP::~UM_IRP<000001FBCD26E0E0>
+The thread 'Win64 Thread' (0x11f0) has exited with code 0 (0x0).
+
+======== unlock ======
+37c>LockTestFile::~LockTestFile<000001FBCD231650>
+The thread 'Win64 Thread' (0x37c) has exited with code 0 (0x0).
+
+
+//////////////////////////////////////////////////////////////////////////////////////
+// with UM_IRP_WRONG or UM_IRP_OK and without LOCKFILE_FAIL_IMMEDIATELY, wait for lock canceled:
+
+
+de0>LockTestFile::LockTestFile<0000014B8D9E08F0>
+10bc>UM_IRP::UM_IRP<0000014B8DA1D340>
+d90>UM_IRP::UM_IRP<0000014B8DA1DF20>
+1ae4> !! UM_IRP::IoCompletionCallback<0000014B8DA1D340>(0, 0000000000000000)
+1ae4>UM_IRP::IoCompletionWin32<0000014B8DA1D340>(0, 0000000000000000)
+1ae4>UM_IRP::~UM_IRP<0000014B8DA1D340>
+1ae4> !! UM_IRP::IoCompletionCallback<0000014B8DA1DF20>(3e3, 0000000000000000)
+1ae4>UM_IRP::IoCompletionWin32<0000014B8DA1DF20>(3e3, 0000000000000000)
+1ae4>UM_IRP::~UM_IRP<0000014B8DA1DF20>
+d90> The I/O operation has been aborted because of either a thread exit or an application request.
+
+The thread 'Win64 Thread' (0xd90) has exited with code 0 (0x0).
+
+======== unlock ======
+10bc>LockTestFile::~LockTestFile<0000014B8D9E08F0>
+The thread 'Win64 Thread' (0x10bc) has exited with code 0 (0x0).
+

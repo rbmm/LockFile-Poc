@@ -1,0 +1,84 @@
+//////////////////////////////////////////////////////////////////////////////////////
+// with UM_IRP_OK and FailImmediately = TRUE:
+
+1b00>NT::LockTestFile::LockTestFile<000002992A60F4D0>
+16a0>NT::UM_IRP::UM_IRP<000002992A605310>
+15a4>NT::UM_IRP::UM_IRP<000002992A64D490>
+488> !! NT::UM_IRP::IoCompletionNT<000002992A64D490>(c0000055, 0000000000000000)
+488>NT::UM_IRP::IoCompletion<000002992A64D490>(c0000055, 0000000000000000)
+1628> !! NT::UM_IRP::IoCompletionNT<000002992A605310>(0, 0000000000000000)
+1628>NT::UM_IRP::IoCompletion<000002992A605310>(0, 0000000000000000)
+488>NT::UM_IRP::~UM_IRP<000002992A64D490>
+1628>NT::UM_IRP::~UM_IRP<000002992A605310>
+15a4> A requested file lock cannot be granted due to other existing locks.
+
+The thread 'Win64 Thread' (0x15a4) has exited with code 0 (0x0).
+
+======== unlock ======
+16a0>NT::LockTestFile::~LockTestFile<000002992A60F4D0>
+The thread 'Win64 Thread' (0x16a0) has exited with code 0 (0x0).
+
+
+//////////////////////////////////////////////////////////////////////////////////////
+// with UM_IRP_WRONG and FailImmediately = TRUE: - main POC case
+
+b8c>NT::LockTestFile::LockTestFile<00000145C6FE2DF0>
+1528>NT::UM_IRP::UM_IRP<00000145C701D460>
+384>NT::UM_IRP::UM_IRP<00000145C701C940>
+384>NT::UM_IRP::IoCompletion<00000145C701C940>(c0000055, 0000000000000000)
+33c> !! NT::UM_IRP::IoCompletionNT<00000145C701C940>(c0000055, 0000000000000000)
+384>NT::UM_IRP::~UM_IRP<00000145C701C940>
+33c>NT::UM_IRP::IoCompletion<00000145C701C940>(c0000055, 0000000000000000)
+First-chance exception at 0x00007ff6ddd8503c in poc.exe: 0xC0000005: Access violation reading location 0xffffffffffffffff.
+1598> !! NT::UM_IRP::IoCompletionNT<00000145C701D460>(0, 0000000000000000)
+1598>NT::UM_IRP::IoCompletion<00000145C701D460>(0, 0000000000000000)
+Unhandled exception at 0x00007ff6ddd8503c in poc.exe: 0xC0000005: Access violation reading location 0xffffffffffffffff.
+
+crash because double-free of UM_IRP_WRONG - after got c0000055 i assume that will be no IOCP packet and free UM_IRP_WRONG
+but really - will be IOCP packet and callback called, where also free UM_IRP_WRONG
+
+
+------------------------- not for POC, just for demo, here no different with UM_IRP_WRONG or UM_IRP_OK, if FailImmediately = FALSE -----------------
+
+//////////////////////////////////////////////////////////////////////////////////////
+// with UM_IRP_WRONG or UM_IRP_OK and FailImmediately = FALSE, wait for lock not canceled:
+
+e68>NT::LockTestFile::LockTestFile<000001EFF1306D00>
+171c>NT::UM_IRP::UM_IRP<000001EFF134D380>
+f0c>NT::UM_IRP::UM_IRP<000001EFF134DF60>
+10cc> !! NT::UM_IRP::IoCompletionNT<000001EFF134D380>(0, 0000000000000000)
+10cc>NT::UM_IRP::IoCompletion<000001EFF134D380>(0, 0000000000000000)
+10cc>NT::UM_IRP::~UM_IRP<000001EFF134D380>
+
+======== unlock ======
+10cc> !! NT::UM_IRP::IoCompletionNT<000001EFF134DF60>(0, FFFF830992CBC450)
+10cc>NT::UM_IRP::IoCompletion<000001EFF134DF60>(0, FFFF830992CBC450)
+10cc>NT::UM_IRP::~UM_IRP<000001EFF134DF60>
+The thread 'Win64 Thread' (0x171c) has exited with code 0 (0x0).
+
+======== unlock ======
+f0c>NT::LockTestFile::~LockTestFile<000001EFF1306D00>
+The thread 'Win64 Thread' (0xf0c) has exited with code 0 (0x0).
+
+
+//////////////////////////////////////////////////////////////////////////////////////
+// with UM_IRP_WRONG or UM_IRP_OK and FailImmediately = FALSE, wait for lock not canceled:
+
+
+1690>NT::LockTestFile::LockTestFile<000002610F052E00>
+1950>NT::UM_IRP::UM_IRP<000002610F08D470>
+15e4>NT::UM_IRP::UM_IRP<000002610F08E050>
+8d8> !! NT::UM_IRP::IoCompletionNT<000002610F08D470>(0, 0000000000000000)
+8d8>NT::UM_IRP::IoCompletion<000002610F08D470>(0, 0000000000000000)
+8d8>NT::UM_IRP::~UM_IRP<000002610F08D470>
+8d8> !! NT::UM_IRP::IoCompletionNT<000002610F08E050>(c0000120, 0000000000000000)
+8d8>NT::UM_IRP::IoCompletion<000002610F08E050>(c0000120, 0000000000000000)
+8d8>NT::UM_IRP::~UM_IRP<000002610F08E050>
+15e4> The I/O request was canceled.
+
+The thread 'Win64 Thread' (0x15e4) has exited with code 0 (0x0).
+
+======== unlock ======
+1950>NT::LockTestFile::~LockTestFile<000002610F052E00>
+The thread 'Win64 Thread' (0x1950) has exited with code 0 (0x0).
+

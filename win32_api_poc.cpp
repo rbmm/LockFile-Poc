@@ -7,7 +7,7 @@ extern "C"
 	NTSYSAPI ULONG NTAPI RtlNtStatusToDosError (_In_ NTSTATUS Status);
 }
 
-#if 0 //1 //0
+#if 1 //1 //0
 #define UM_IRP_ UM_IRP_WRONG
 #else
 #define UM_IRP_ UM_IRP_OK
@@ -102,7 +102,7 @@ public:
 	{
 		if (!IsWillBeNotification(dwErrorCode, bSkipOnSynchronous))
 		{
-			IoCompletionWin32(dwErrorCode, (ULONG)InternalHigh);
+			IoCompletionWin32(dwErrorCode, InternalHigh);
 		}
 	}
 
@@ -174,6 +174,11 @@ public:
 		ULONG dwThreadId, opCode, dwErrorCode;
 	};
 private:
+	virtual ~LockTestFile()
+	{
+		DbgPrint("%x>%s<%p>\n", GetCurrentThreadId(), __FUNCTION__, this);
+	}
+
 	virtual void IoCompletion(ULONG opCode, ULONG dwErrorCode, ULONG_PTR /*dwNumberOfBytesTransfered*/, PVOID Pointer)
 	{
 		IO_RESULT* pio = (IO_RESULT*)Pointer;
@@ -182,7 +187,12 @@ private:
 		PostThreadMessageW(pio->dwThreadId, WM_QUIT, 0, 0);
 	}
 public:
-	enum { opLock = 'kcol', opUnlock = 'klnu' };
+	enum { opLock = 'kcol' };
+
+	LockTestFile()
+	{
+		DbgPrint("%x>%s<%p>\n", GetCurrentThreadId(), __FUNCTION__, this);
+	}
 
 	ULONG Open(PCWSTR pszFileName)
 	{
@@ -215,7 +225,7 @@ public:
 			Init(pio);
 
 			// try also with LOCKFILE_EXCLUSIVE_LOCK only for compare, here no error even with UM_IRP_WRONG
-			lpOverlapped->CheckError(
+			lpOverlapped->CheckError(//
 				LockFileEx(_hFile, LOCKFILE_EXCLUSIVE_LOCK|LOCKFILE_FAIL_IMMEDIATELY, 0, 1, 0, lpOverlapped), bSkipOnSynchronous);
 
 			return true;
@@ -224,19 +234,10 @@ public:
 		return false;
 	}
 
-	bool Unlock(IO_RESULT* pio, bool bSkipOnSynchronous)
+	BOOL Unlock()
 	{
-		if (UM_IRP_* lpOverlapped = new UM_IRP_(this, opUnlock, pio))
-		{
-			Init(pio);
-
-			lpOverlapped->CheckError(
-				UnlockFileEx(_hFile, 0, 1, 0, lpOverlapped), bSkipOnSynchronous);
-
-			return true;
-		}
-
-		return false;
+		OVERLAPPED ov{};
+		return UnlockFileEx(_hFile, 0, 1, 0, &ov);
 	}
 
 	BOOL CancelIo()
@@ -276,6 +277,7 @@ ULONG WINAPI TestLockThread(LockTestFile* pObj)
 			FORMAT_MESSAGE_FROM_SYSTEM, 0, ior.dwErrorCode, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
 			(PWSTR)&psz, 0, NULL))
 		{
+			DbgPrint("%x> %S\n", GetCurrentThreadId(), psz);
 			while (PeekMessageW(&msg, 0, 0, 0, PM_REMOVE)) continue;//for remove WM_QUIT
 			MessageBoxW(0, psz, caption, MB_ICONWARNING);
 			LocalFree(psz);
@@ -287,22 +289,12 @@ ULONG WINAPI TestLockThread(LockTestFile* pObj)
 		{
 		case LockTestFile::opLock:
 
-			if (ior.dwErrorCode == NOERROR)
-			{
-				while (PeekMessageW(&msg, 0, 0, 0, PM_REMOVE)) continue;//for remove WM_QUIT
+			while (PeekMessageW(&msg, 0, 0, 0, PM_REMOVE)) continue;//for remove WM_QUIT
 
-				MessageBoxW(0, L"Lock Held!", caption, MB_OK);
+			MessageBoxW(0, L"Lock Held!", caption, MB_OK);
 
-				DbgPrint("\n======== unlock ======\n");
-				pObj->Unlock(&ior, false);
-
-				MessageBoxW(0, L"Waiting For Unlock...", caption, MB_OK);
-
-				if (ior.dwErrorCode != ERROR_IO_PENDING) __debugbreak();
-
-				// despite UnlockFileEx completed with no error - no notification !!
-				// resourse leak !!
-			}
+			DbgPrint("\n======== unlock ======\n");
+			if (!pObj->Unlock()) __debugbreak();
 		}
 	}
 
