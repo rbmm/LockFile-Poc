@@ -1,0 +1,48 @@
+NTSTATUS NtLockFile(... PVOID ApcContext ...)
+{
+	PFILE_OBJECT FileObject;
+
+	// code after FastIoLock return TRUE - look NtLockFile.png
+
+	PIO_COMPLETION_CONTEXT CompletionContext = FileObject->CompletionContext;
+
+	if (CompletionContext &&
+		ApcContext &&
+		!(FileObject->Flags & FO_SKIP_COMPLETION_PORT))
+	{
+		IoSetIoCompletionEx2( CompletionContext->Port,
+			CompletionContext->Key,
+			ApcContext,
+			status, // not checked !!!
+			Information,
+			...);
+	}
+}
+
+// for compare - look like fixed in win 8
+
+NTSTATUS IopXxxControlFile(... PVOID ApcContext ...)
+{
+	PFILE_OBJECT FileObject;
+
+	NTSTATUS status;
+	PVOID Port = 0, Key = 0;
+
+	// code after FastIoDeviceControl - look IopXxxControlFile.png
+
+	PIO_COMPLETION_CONTEXT CompletionContext = FileObject->CompletionContext;
+
+	if (
+		CompletionContext && 
+		!(FileObject->Flags & FO_SKIP_COMPLETION_PORT) &&
+		!NT_ERROR(status) // checked !!!
+		)
+	{
+		Port = CompletionContext->Port, Key = CompletionContext->Key;
+	}
+
+	if (Port && ApcContext)
+	{
+		IoSetIoCompletionEx2( Port, Key, ApcContext,status, Information,...);
+	}
+}
