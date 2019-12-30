@@ -7,19 +7,27 @@ NTSTATUS NtLockFile(... PVOID ApcContext ...)
 	PIO_COMPLETION_CONTEXT CompletionContext = FileObject->CompletionContext;
 
 	if (CompletionContext &&
-		ApcContext &&
-		!(FileObject->Flags & FO_SKIP_COMPLETION_PORT))
+	    ApcContext &&
+	    !(FileObject->Flags & FO_SKIP_COMPLETION_PORT))
 	{
-		IoSetIoCompletionEx2( CompletionContext->Port,
+		if (0 > IoSetIoCompletionEx2( CompletionContext->Port,
 			CompletionContext->Key,
 			ApcContext,
-			status, // not checked !!!
+			status, // not checked for NT_ERROR !!!
 			Information,
-			...);
+			...)) status = STATUS_INSUFFICIENT_RESOURCES;
 	}
+
+        return status;
 }
 
-// for compare - look like fixed in win 8
+if FastIoLock return TRUE (which only mean that I/O complete) the I/O manager try post entry to IOCP (via IoSetIoCompletionEx2)
+without looking for status returned by FastIoLock 
+as result possible situation, when NtLockFile return NT_ERROR status (say STATUS_LOCK_NOT_GRANTED or STATUS_INVALID_PARAMETER)
+but will be IOCP entry anyway
+
+------------------------------------------------------------------
+// for compare - look fixed in win 8 IopXxxControlFile code
 
 NTSTATUS IopXxxControlFile(... PVOID ApcContext ...)
 {
@@ -34,8 +42,8 @@ NTSTATUS IopXxxControlFile(... PVOID ApcContext ...)
 
 	if (
 		CompletionContext && 
-		!(FileObject->Flags & FO_SKIP_COMPLETION_PORT) &&
-		!NT_ERROR(status) // checked !!!
+		(!(FileObject->Flags & FO_SKIP_COMPLETION_PORT) || NT_WARNING(status)) &&
+		!NT_ERROR(status) // <------------ checked !!!
 		)
 	{
 		Port = CompletionContext->Port, Key = CompletionContext->Key;
@@ -43,6 +51,56 @@ NTSTATUS IopXxxControlFile(... PVOID ApcContext ...)
 
 	if (Port && ApcContext)
 	{
-		IoSetIoCompletionEx2( Port, Key, ApcContext,status, Information,...);
+		if (0 > IoSetIoCompletionEx2( Port, Key, ApcContext,status, Information,...)) status = STATUS_INSUFFICIENT_RESOURCES;
+
+		if (NT_WARNING(status)) status = STATUS_PENDING;
 	}
+
+	return status;
 }
+
+so if FastIoDeviceControl return NT_ERROR(status) - will be no IOCP entry
+or if IoSetIoCompletionEx2 fail - final status replaced to STATUS_INSUFFICIENT_RESOURCES, which is NT_ERROR
+
+so
+
+if api return NT_ERROR(status) - will be no IOCP entry
+
+otherwise
+
+if FastIoDeviceControl return NT_WARNING(status) - will IOCP entry and final status STATUS_PENDING
+
+so
+
+if api return STATUS_PENDING - always will be IOCP entry (even if FO_SKIP_COMPLETION_PORT set on file) 
+
+otherwise
+
+result := !(FileObject->Flags & FO_SKIP_COMPLETION_PORT)
+
+so code inside IopXxxControlFile (begin from windows 8.1 or 8) conformed to common logic
+
+// status - returned by asynchronous api call (i.e. NtXxx(HANDLE FileHandle,HANDLE Event,PIO_APC_ROUTINE ApcRoutine,PVOID ApcContext,IO_STATUS_BLOCK IoStatusBlock,..)
+// bSkipOnSuccess = FileObject->Flags & FO_SKIP_COMPLETION_PORT - i.e - are we set FILE_SKIP_COMPLETION_PORT_ON_SUCCESS on file
+// of course FileObject->CompletionContext must be not 0 and we must pass no zero ApcContext to api call
+
+bool Will_be_IOCP_Notification(NTSTATUS status, BOOLEAN bSkipOnSuccess = FALSE)
+{
+	return !NT_ERROR(status) && (status == STATUS_PENDING || !bSkipOnSuccess);
+}
+
+or if want
+
+!NT_ERROR(status) && (status == STATUS_PENDING || !bSkipOnSuccess) ->
+
+(!NT_ERROR(status) && status == STATUS_PENDING) || (!NT_ERROR(status) && !bSkipOnSuccess) ->
+
+status == STATUS_PENDING) || (!NT_ERROR(status) && !bSkipOnSuccess) ->
+
+bool Will_be_IOCP_Notification(NTSTATUS status, BOOLEAN bSkipOnSuccess = FALSE)
+{
+	return status == STATUS_PENDING || (!NT_ERROR(status) && !bSkipOnSuccess);
+}
+
+
+(in win7 still exist bug in IopXxxControlFile)
